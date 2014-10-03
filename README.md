@@ -1,4 +1,4 @@
 Movies_Hive
 ===========
 
-Movie recommendation system using Hive atop HDFS
+(Hive) Movie recommendation system using Hive atop HDFS
