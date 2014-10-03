@@ -1,0 +1,57 @@
+CREATE TABLE movie_original(
+	userID STRING,
+	movieID STRING,
+	rating INT,
+	reviewtime TIMESTAMP)
+	ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+
+LOAD DATA INPATH 'rec.data' OVERWRITE INTO TABLE movie_original;
+
+CREATE TABLE movie1 (
+	userID STRING,
+	movieID STRING);
+
+INSERT OVERWRITE TABLE movie1 
+	SELECT userID, movieID
+	FROM movie_original
+	WHERE rating >= 3;
+
+CREATE TABLE movie2 (
+	movieA STRING,
+	movieB STRING,
+	support BIGINT
+	);
+
+#support is a metric that shows the amount of users that have highly rated both movies - only support > 100 included
+INSERT OVERWRITE TABLE movie2
+	SELECT A.movieID AS movieA, B.movieID AS movieB, COUNT(A.movieID) AS support
+	FROM movie1 A JOIN movie1 B
+	ON(A.userID = B.userID)
+	WHERE A.movieID <> B.movieID
+	GROUP BY movieA, movieB
+	HAVING support > 100;
+
+CREATE TABLE movie3 (
+	userID STRING,
+	original STRING,
+	rec STRING,
+	support BIGINT);
+
+INSERT OVERWRITE TABLE movie3
+	SELECT movie1.userID AS userID, movie1.movieID AS original, movie2.movieB AS rec, movie2.support AS support
+	FROM movie1 INNER JOIN movie2
+	ON movie1.movieID = movie2.movieA;
+
+CREATE TABLE movie_final_aa (
+	userID STRING,
+	rec STRING,
+	support BIGINT);
+
+#recommendations are ordered by support
+INSERT OVERWRITE TABLE movie_final_aa
+	SELECT A.userID as userID, A.rec AS rec, MAX(A.support) AS support
+	FROM movie3 A LEFT OUTER JOIN movie_original B ON (A.rec = B.movieID AND A.userID = B.userID)
+	WHERE B.movieID IS NULL
+	GROUP BY A.userID, A.rec;
+
+INSERT OVERWRITE local directory '/home/huser17/hw5' ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' SELECT * FROM movie_final_aa ORDER BY userID, support desc;
